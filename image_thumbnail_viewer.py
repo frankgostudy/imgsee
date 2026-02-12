@@ -163,12 +163,16 @@ class ImageViewerDialog(QDialog):
         self.index = max(0, min(current_index, len(paths) - 1))
         self.zoom_percent = load_image_view_zoom()  # 0 = 符合視窗
         self._original: QPixmap | None = None
+        self._is_fullscreen = False # 追蹤全螢幕狀態
+
         self.setWindowTitle(f"大圖檢視 - {paths[self.index].name}" if paths else "大圖檢視")
         self.setMinimumSize(320, 240)
         self.resize(900, 700)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setStyleSheet("""
-            QDialog { background-color: #1e1e1e; }
+            QDialog {
+                background-color: #1e1e1e; /* 視窗模式預設背景 */
+            }
 
             /* 通用按鈕樣式 */
             QPushButton {
@@ -230,9 +234,9 @@ class ImageViewerDialog(QDialog):
         layout.setSpacing(10)
 
         # 工具列佈局優化
-        toolbar_container = QWidget()
+        self.toolbar_container = QWidget() # 儲存參考，以便在全螢幕模式下隱藏/顯示
         # toolbar_container.setStyleSheet("background-color: #1e1e1e;") # 樣式已整合至主 QDialog
-        bar = QHBoxLayout(toolbar_container)
+        bar = QHBoxLayout(self.toolbar_container)
         bar.setContentsMargins(0, 0, 0, 0)
         bar.setSpacing(10) # 間距拉開至 10px
 
@@ -276,9 +280,10 @@ class ImageViewerDialog(QDialog):
         
         bar.addStretch(1)
         
-        layout.addWidget(toolbar_container)
+        layout.addWidget(self.toolbar_container)
 
         self.scroll = QScrollArea()
+
 
 
         self.scroll.setWidgetResizable(False)  # 保持圖片尺寸，長或寬超出視窗即可平移
@@ -482,15 +487,37 @@ class ImageViewerDialog(QDialog):
         if self.zoom_percent == 0 or self.zoom_percent == -1:
             self._apply_zoom()
 
+    def _toggle_fullscreen(self):
+        """切換全螢幕模式，並隱藏/顯示工具列和調整背景色"""
+        if self._is_fullscreen:
+            self.showNormal()
+            self.toolbar_container.show()
+            self.setStyleSheet("QDialog { background-color: #1e1e1e; }" + self.styleSheet().replace("QDialog { background-color: #000000; }", "")) # 恢復原始背景
+        else:
+            self.showFullScreen()
+            self.toolbar_container.hide()
+            self.setStyleSheet("QDialog { background-color: #000000; }" + self.styleSheet().replace("QDialog { background-color: #1e1e1e; }", "")) # 全螢幕背景純黑
+        self._is_fullscreen = not self._is_fullscreen
+        self._apply_zoom() # 切換全螢幕後重新調整圖片顯示
+
     def keyPressEvent(self, event: QKeyEvent):
         key = event.key()
+        if key == Qt.Key.Key_F11 or key == Qt.Key.Key_Return: # F11 或 Enter 切換全螢幕
+            self._toggle_fullscreen()
+            return
+        if key == Qt.Key.Key_Escape: # Esc 鍵邏輯
+            if self._is_fullscreen:
+                self._toggle_fullscreen()
+            else:
+                self.reject() # 關閉大圖視窗
+            return
         if key == Qt.Key.Key_Left:
             self._go_prev()
             return
         if key == Qt.Key.Key_Right:
             self._go_next()
             return
-        if key in (Qt.Key.Key_Escape, Qt.Key.Key_Q):
+        if key == Qt.Key.Key_Q: # Q 鍵也用於關閉
             self.reject()
             return
         super().keyPressEvent(event)
