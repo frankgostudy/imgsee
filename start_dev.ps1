@@ -10,4 +10,5 @@ code .
 
 # 4. 啟動 OpenCode (AI 代理人)
 # 這會直接在當前視窗進入 OpenCode 介面
+# python image_thumbnail_viewer.py
 opencode
